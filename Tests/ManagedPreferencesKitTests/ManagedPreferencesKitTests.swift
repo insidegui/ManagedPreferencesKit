@@ -3,17 +3,7 @@ import XCTest
 
 final class ManagedPreferencesKitTests: XCTestCase {
     func testResultBuilderBuildsGroupedSchemaWithInlineDocumentation() {
-        let schema = ManagedPreferencesSchema(domain: "codes.rambo.VirtualBuddy", displayName: "VirtualBuddy") {
-            PreferenceGroup("Security") {
-                Self.disableSharedFolders
-            }
-
-            PreferenceGroup("Networking") {
-                Self.allowedNetworkModes
-                Self.defaultNetworkMode
-                Self.lockNetworkMode
-            }
-        }
+        let schema = VirtualBuddyManagedPreferences.schema
 
         XCTAssertEqual(schema.preferences.count, 4)
         XCTAssertEqual(schema.sections.map(\.name), ["Security", "Networking"])
@@ -26,16 +16,7 @@ final class ManagedPreferencesKitTests: XCTestCase {
     }
 
     func testMarkdownDocumentationIncludesTypesDefaultsAndOptions() {
-        let schema = ManagedPreferencesSchema(domain: "codes.rambo.VirtualBuddy", displayName: "VirtualBuddy") {
-            PreferenceGroup("Security") {
-                Self.disableSharedFolders
-            }
-
-            PreferenceGroup("Networking") {
-                Self.allowedNetworkModes
-            }
-        }
-
+        let schema = VirtualBuddyManagedPreferences.schema
         let markdown = schema.markdownDocumentation()
 
         XCTAssertTrue(markdown.contains("# VirtualBuddy Managed Preferences"))
@@ -48,15 +29,14 @@ final class ManagedPreferencesKitTests: XCTestCase {
     }
 
     func testReaderResolvesForcedManagedValue() {
-        let reader = ManagedPreferenceReader(
-            domain: "codes.rambo.VirtualBuddy",
+        let reader = VirtualBuddyManagedPreferences.schema.reader(
             store: DictionaryManagedPreferenceStore(
                 values: ["DisableSharedFolders": true],
                 forcedKeys: ["DisableSharedFolders"]
             )
         )
 
-        let resolution = reader.resolve(Self.disableSharedFolders)
+        let resolution = reader.resolve(.disableSharedFolders)
 
         XCTAssertEqual(resolution.value, true)
         XCTAssertEqual(resolution.decodedValue, true)
@@ -64,16 +44,26 @@ final class ManagedPreferencesKitTests: XCTestCase {
         XCTAssertEqual(resolution.source, .managed)
     }
 
+    func testReaderReadsNamespacedPreferenceShorthand() {
+        let reader = VirtualBuddyManagedPreferences.schema.reader(
+            store: DictionaryManagedPreferenceStore(
+                values: ["DisableSharedFolders": true],
+                forcedKeys: ["DisableSharedFolders"]
+            )
+        )
+
+        XCTAssertTrue(reader.value(for: .disableSharedFolders, default: false))
+    }
+
     func testReaderFallsBackToDefaultForInvalidValue() {
-        let reader = ManagedPreferenceReader(
-            domain: "codes.rambo.VirtualBuddy",
+        let reader = VirtualBuddyManagedPreferences.schema.reader(
             store: DictionaryManagedPreferenceStore(
                 values: ["AllowedNetworkModes": ["NAT", 42]],
                 forcedKeys: ["AllowedNetworkModes"]
             )
         )
 
-        let resolution = reader.resolve(Self.allowedNetworkModes)
+        let resolution = reader.resolve(.allowedNetworkModes)
 
         XCTAssertEqual(resolution.value, ["NAT", "Bridged"])
         XCTAssertNil(resolution.decodedValue)
@@ -81,22 +71,40 @@ final class ManagedPreferencesKitTests: XCTestCase {
     }
 
     func testReaderFallsBackToDefaultForDisallowedValue() {
-        let reader = ManagedPreferenceReader(
-            domain: "codes.rambo.VirtualBuddy",
+        let reader = VirtualBuddyManagedPreferences.schema.reader(
             store: DictionaryManagedPreferenceStore(
                 values: ["AllowedNetworkModes": ["NAT", "HostOnly"]],
                 forcedKeys: ["AllowedNetworkModes"]
             )
         )
 
-        let resolution = reader.resolve(Self.allowedNetworkModes)
+        let resolution = reader.resolve(.allowedNetworkModes)
 
         XCTAssertEqual(resolution.value, ["NAT", "Bridged"])
         XCTAssertEqual(resolution.decodedValue, ["NAT", "HostOnly"])
         XCTAssertEqual(resolution.source, .invalidValue)
     }
+}
 
-    private static let disableSharedFolders = ManagedPreference("DisableSharedFolders", default: false) {
+private enum VirtualBuddyManagedPreferences: ManagedPreferencesNamespace {
+    static let schema = Schema(
+        domain: "codes.rambo.VirtualBuddy",
+        displayName: "VirtualBuddy"
+    ) {
+        Group("Security") {
+            Preference<Bool>.disableSharedFolders
+        }
+
+        Group("Networking") {
+            Preference<[String]>.allowedNetworkModes
+            Preference<String>.defaultNetworkMode
+            Preference<Bool>.lockNetworkMode
+        }
+    }
+}
+
+private extension ManagedPreference where Namespace == VirtualBuddyManagedPreferences, Value == Bool {
+    static let disableSharedFolders = Self("DisableSharedFolders", default: false) {
         Summary("Disables Shared Folders globally.")
         Discussion("When enabled, existing host to guest folder mappings should be ignored at launch and new mappings should be denied.")
         DefaultBehavior("Shared Folders are available unless this key is forced to true by MDM.")
@@ -109,23 +117,27 @@ final class ManagedPreferencesKitTests: XCTestCase {
         Example(true, "Block Shared Folders for regulated environments.")
     }
 
-    private static let allowedNetworkModes = ManagedPreference("AllowedNetworkModes", default: ["NAT", "Bridged"]) {
-        Summary("Limits the network modes a user may choose.")
-        AllowedValues("NAT", "Bridged")
-        Example(["NAT"], "Permit NAT and disallow Bridged networking.")
-    }
-
-    private static let defaultNetworkMode = ManagedPreference("DefaultNetworkMode", default: "NAT") {
-        Summary("Sets the default network mode for newly created VMs.")
-        AllowedValues("NAT", "Bridged")
-    }
-
-    private static let lockNetworkMode = ManagedPreference("LockNetworkMode", default: false) {
+    static let lockNetworkMode = Self("LockNetworkMode", default: false) {
         Summary("Prevents users from changing the effective network mode.")
         Options {
             Option(true, "Use the policy-defined network mode.")
             Option(false, "Users may choose any allowed network mode.")
         }
+    }
+}
+
+private extension ManagedPreference where Namespace == VirtualBuddyManagedPreferences, Value == [String] {
+    static let allowedNetworkModes = Self("AllowedNetworkModes", default: ["NAT", "Bridged"]) {
+        Summary("Limits the network modes a user may choose.")
+        AllowedValues("NAT", "Bridged")
+        Example(["NAT"], "Permit NAT and disallow Bridged networking.")
+    }
+}
+
+private extension ManagedPreference where Namespace == VirtualBuddyManagedPreferences, Value == String {
+    static let defaultNetworkMode = Self("DefaultNetworkMode", default: "NAT") {
+        Summary("Sets the default network mode for newly created VMs.")
+        AllowedValues("NAT", "Bridged")
     }
 }
 

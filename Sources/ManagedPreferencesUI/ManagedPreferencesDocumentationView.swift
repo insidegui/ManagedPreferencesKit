@@ -3,20 +3,20 @@ import ManagedPreferencesKit
 import SwiftUI
 import UniformTypeIdentifiers
 
-public struct ManagedPreferencesDocumentationView: View {
-    private let schema: ManagedPreferencesSchema
+public struct ManagedPreferencesDocumentationView<Namespace>: View {
+    private let schema: ManagedPreferencesSchema<Namespace>
     private let exportFilename: String
 
     @State private var isExportingMarkdown = false
     @State private var markdownDocument = MarkdownDocumentationDocument(markdown: "")
     @State private var exportFailureMessage: String?
 
-    public init(_ schema: ManagedPreferencesSchema, exportFilename: String? = nil) {
+    public init(_ schema: ManagedPreferencesSchema<Namespace>, exportFilename: String? = nil) {
         self.schema = schema
         self.exportFilename = exportFilename ?? Self.defaultExportFilename(for: schema)
     }
 
-    public init(schema: ManagedPreferencesSchema, exportFilename: String? = nil) {
+    public init(schema: ManagedPreferencesSchema<Namespace>, exportFilename: String? = nil) {
         self.init(schema, exportFilename: exportFilename)
     }
 
@@ -113,7 +113,7 @@ public struct ManagedPreferencesDocumentationView: View {
         }
     }
 
-    private static func defaultExportFilename(for schema: ManagedPreferencesSchema) -> String {
+    private static func defaultExportFilename(for schema: ManagedPreferencesSchema<Namespace>) -> String {
         let trimmedDisplayName = schema.displayName?.trimmingCharacters(in: .whitespacesAndNewlines)
         let baseName = trimmedDisplayName?.isEmpty == false ? trimmedDisplayName! : schema.domain
 

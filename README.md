@@ -7,8 +7,25 @@ ManagedPreferencesKit is a Swift 6 package for declaring custom managed preferen
 ```swift
 import ManagedPreferencesKit
 
-enum VirtualBuddyManagedPreferences {
-    static let disableSharedFolders = ManagedPreference("DisableSharedFolders", default: false) {
+enum VirtualBuddyManagedPreferences: ManagedPreferencesNamespace {
+    static let schema = Schema(
+        domain: "codes.rambo.VirtualBuddy",
+        displayName: "VirtualBuddy"
+    ) {
+        Group("Security") {
+            Preference<Bool>.disableSharedFolders
+        }
+
+        Group("Networking") {
+            Preference<[String]>.allowedNetworkModes
+            Preference<String>.defaultNetworkMode
+            Preference<Bool>.lockNetworkMode
+        }
+    }
+}
+
+extension ManagedPreference where Namespace == VirtualBuddyManagedPreferences, Value == Bool {
+    static let disableSharedFolders = Self("DisableSharedFolders", default: false) {
         Summary("Disables Shared Folders globally.")
         Discussion("When enabled, existing host to guest mappings should be ignored at launch and new mappings should be denied.")
         DefaultBehavior("Shared Folders are available unless this key is forced to true by MDM.")
@@ -21,38 +38,27 @@ enum VirtualBuddyManagedPreferences {
         Example(true, "Block Shared Folders for regulated environments.")
     }
 
-    static let allowedNetworkModes = ManagedPreference("AllowedNetworkModes", default: ["NAT", "Bridged"]) {
-        Summary("Limits the network modes a user may choose.")
-        AllowedValues("NAT", "Bridged")
-        Example(["NAT"], "Permit NAT and disallow Bridged networking.")
-    }
-
-    static let defaultNetworkMode = ManagedPreference("DefaultNetworkMode", default: "NAT") {
-        Summary("Sets the default network mode for newly created VMs.")
-        AllowedValues("NAT", "Bridged")
-    }
-
-    static let lockNetworkMode = ManagedPreference("LockNetworkMode", default: false) {
+    static let lockNetworkMode = Self("LockNetworkMode", default: false) {
         Summary("Prevents users from changing the effective network mode.")
         Options {
             Option(true, "Use the policy-defined network mode.")
             Option(false, "Users may choose any allowed network mode.")
         }
     }
+}
 
-    static let schema = ManagedPreferencesSchema(
-        domain: "codes.rambo.VirtualBuddy",
-        displayName: "VirtualBuddy"
-    ) {
-        PreferenceGroup("Security") {
-            disableSharedFolders
-        }
+extension ManagedPreference where Namespace == VirtualBuddyManagedPreferences, Value == [String] {
+    static let allowedNetworkModes = Self("AllowedNetworkModes", default: ["NAT", "Bridged"]) {
+        Summary("Limits the network modes a user may choose.")
+        AllowedValues("NAT", "Bridged")
+        Example(["NAT"], "Permit NAT and disallow Bridged networking.")
+    }
+}
 
-        PreferenceGroup("Networking") {
-            allowedNetworkModes
-            defaultNetworkMode
-            lockNetworkMode
-        }
+extension ManagedPreference where Namespace == VirtualBuddyManagedPreferences, Value == String {
+    static let defaultNetworkMode = Self("DefaultNetworkMode", default: "NAT") {
+        Summary("Sets the default network mode for newly created VMs.")
+        AllowedValues("NAT", "Bridged")
     }
 }
 ```
@@ -62,7 +68,7 @@ enum VirtualBuddyManagedPreferences {
 ```swift
 let reader = VirtualBuddyManagedPreferences.schema.reader()
 
-if reader.value(for: VirtualBuddyManagedPreferences.disableSharedFolders, default: false) {
+if reader.value(for: .disableSharedFolders, default: false) {
     logger.notice("Shared Folders blocked by managed preference DisableSharedFolders")
     vmConfiguration.sharedFolders = []
 }

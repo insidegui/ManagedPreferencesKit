@@ -1,6 +1,15 @@
 import Foundation
 
-public struct ManagedPreference<Value: ManagedPreferenceValue>: Sendable {
+public protocol ManagedPreferencesNamespace {}
+
+public extension ManagedPreferencesNamespace {
+    typealias Preference<Value: ManagedPreferenceValue> = ManagedPreference<Self, Value>
+    typealias Schema = ManagedPreferencesSchema<Self>
+    typealias Reader = ManagedPreferenceReader<Self>
+    typealias Group = PreferenceGroup<Self>
+}
+
+public struct ManagedPreference<Namespace, Value: ManagedPreferenceValue>: Sendable {
     public var key: String
     public var title: String?
     public var defaultValue: Value?
@@ -64,7 +73,7 @@ public struct AnyManagedPreference: Equatable, Sendable, Identifiable {
         title ?? key
     }
 
-    public init<Value: ManagedPreferenceValue>(_ preference: ManagedPreference<Value>, group: String? = nil) {
+    public init<Namespace, Value: ManagedPreferenceValue>(_ preference: ManagedPreference<Namespace, Value>, group: String? = nil) {
         key = preference.key
         title = preference.title
         valueType = preference.valueType

@@ -41,8 +41,8 @@ public enum ManagedPreferenceResolutionSource: String, Equatable, Sendable {
     case invalidValue
 }
 
-public struct ManagedPreferenceResolution<Value: ManagedPreferenceValue> {
-    public var preference: ManagedPreference<Value>
+public struct ManagedPreferenceResolution<Namespace, Value: ManagedPreferenceValue> {
+    public var preference: ManagedPreference<Namespace, Value>
     public var rawValue: Any?
     public var decodedValue: Value?
     public var value: Value?
@@ -54,7 +54,7 @@ public struct ManagedPreferenceResolution<Value: ManagedPreferenceValue> {
     }
 }
 
-public struct ManagedPreferenceReader {
+public struct ManagedPreferenceReader<Namespace> {
     public var domain: String
     public var store: ManagedPreferenceStore
 
@@ -63,7 +63,7 @@ public struct ManagedPreferenceReader {
         self.store = store
     }
 
-    public func resolve<Value: ManagedPreferenceValue>(_ preference: ManagedPreference<Value>) -> ManagedPreferenceResolution<Value> {
+    public func resolve<Value: ManagedPreferenceValue>(_ preference: ManagedPreference<Namespace, Value>) -> ManagedPreferenceResolution<Namespace, Value> {
         let rawValue = store.value(forKey: preference.key, domain: domain)
         let isForced = store.valueIsForced(forKey: preference.key, domain: domain)
 
@@ -111,7 +111,7 @@ public struct ManagedPreferenceReader {
     }
 
     public func value<Value: ManagedPreferenceValue>(
-        for preference: ManagedPreference<Value>,
+        for preference: ManagedPreference<Namespace, Value>,
         default fallback: @autoclosure () -> Value
     ) -> Value {
         resolve(preference).value ?? fallback()

@@ -1,6 +1,6 @@
 import Foundation
 
-public struct ManagedPreferencesSchema: Equatable, Sendable {
+public struct ManagedPreferencesSchema<Namespace>: Equatable, Sendable {
     public var domain: String
     public var displayName: String?
     public var preferences: [AnyManagedPreference]
@@ -8,7 +8,7 @@ public struct ManagedPreferencesSchema: Equatable, Sendable {
     public init(
         domain: String,
         displayName: String? = nil,
-        @ManagedPreferenceBuilder preferences: () -> [AnyManagedPreference]
+        @ManagedPreferenceBuilder<Namespace> preferences: () -> [AnyManagedPreference]
     ) {
         self.domain = domain
         self.displayName = displayName
@@ -29,7 +29,7 @@ public struct ManagedPreferencesSchema: Equatable, Sendable {
         }
     }
 
-    public func reader(store: ManagedPreferenceStore = CFPreferencesManagedPreferenceStore()) -> ManagedPreferenceReader {
+    public func reader(store: ManagedPreferenceStore = CFPreferencesManagedPreferenceStore()) -> ManagedPreferenceReader<Namespace> {
         ManagedPreferenceReader(domain: domain, store: store)
     }
 }
@@ -44,23 +44,23 @@ public struct ManagedPreferenceSection: Equatable, Sendable {
     }
 }
 
-public struct PreferenceGroup: Equatable, Sendable {
+public struct PreferenceGroup<Namespace>: Equatable, Sendable {
     public var name: String
     public var preferences: [AnyManagedPreference]
 
-    public init(_ name: String, @ManagedPreferenceBuilder preferences: () -> [AnyManagedPreference]) {
+    public init(_ name: String, @ManagedPreferenceBuilder<Namespace> preferences: () -> [AnyManagedPreference]) {
         self.name = name
         self.preferences = preferences().map { $0.grouped(name) }
     }
 }
 
 @resultBuilder
-public enum ManagedPreferenceBuilder {
+public enum ManagedPreferenceBuilder<Namespace> {
     public static func buildBlock(_ components: [AnyManagedPreference]...) -> [AnyManagedPreference] {
         components.flatMap { $0 }
     }
 
-    public static func buildExpression<Value: ManagedPreferenceValue>(_ expression: ManagedPreference<Value>) -> [AnyManagedPreference] {
+    public static func buildExpression<Value: ManagedPreferenceValue>(_ expression: ManagedPreference<Namespace, Value>) -> [AnyManagedPreference] {
         [AnyManagedPreference(expression)]
     }
 
@@ -68,7 +68,7 @@ public enum ManagedPreferenceBuilder {
         [expression]
     }
 
-    public static func buildExpression(_ expression: PreferenceGroup) -> [AnyManagedPreference] {
+    public static func buildExpression(_ expression: PreferenceGroup<Namespace>) -> [AnyManagedPreference] {
         expression.preferences
     }
 
