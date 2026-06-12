@@ -25,7 +25,10 @@ let package = Package(
         ),
         .testTarget(
             name: "ManagedPreferencesKitTests",
-            dependencies: ["ManagedPreferencesKit"]
+            dependencies: [
+                "ManagedPreferencesKit",
+                "ManagedPreferencesUI"
+            ]
         )
     ],
     swiftLanguageModes: [.v6]

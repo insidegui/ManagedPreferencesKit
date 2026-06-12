@@ -74,7 +74,7 @@ if reader.value(for: .disableSharedFolders, default: false) {
 }
 ```
 
-The default reader uses `CFPreferencesCopyAppValue` and `CFPreferencesAppValueIsForced`, so it works with MDM-managed values in the app's preference domain. `UserDefaultsManagedPreferenceStore` is also available when an app wants to read from an existing `UserDefaults` instance.
+The default reader uses `UserDefaults`, which searches the managed preferences domain before user-controlled defaults and supports change observation through `UserDefaults.didChangeNotification`. `CFPreferencesManagedPreferenceStore` is also available for clients that need direct `CFPreferencesCopyAppValue` and `CFPreferencesAppValueIsForced` reads.
 
 `AllowedValues` and `Options` are used for both documentation and reader-level validation. If MDM provides a value with the wrong property-list type or a value outside the declared options, the resolution is marked as `.invalidValue` and falls back to the declaration's default value.
 

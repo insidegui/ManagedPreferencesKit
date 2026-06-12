@@ -3,6 +3,38 @@ import Foundation
 public protocol ManagedPreferenceStore {
     func value(forKey key: String, domain: String) -> Any?
     func valueIsForced(forKey key: String, domain: String) -> Bool
+    func observeChanges(
+        forKey key: String,
+        domain: String,
+        handler: @escaping @MainActor @Sendable () -> Void
+    ) -> ManagedPreferenceObservation?
+}
+
+public extension ManagedPreferenceStore {
+    func observeChanges(
+        forKey key: String,
+        domain: String,
+        handler: @escaping @MainActor @Sendable () -> Void
+    ) -> ManagedPreferenceObservation? {
+        nil
+    }
+}
+
+public final class ManagedPreferenceObservation {
+    private var cancellation: (() -> Void)?
+
+    public init(_ cancellation: @escaping () -> Void) {
+        self.cancellation = cancellation
+    }
+
+    deinit {
+        cancel()
+    }
+
+    public func cancel() {
+        cancellation?()
+        cancellation = nil
+    }
 }
 
 public struct CFPreferencesManagedPreferenceStore: ManagedPreferenceStore {
@@ -31,6 +63,26 @@ public struct UserDefaultsManagedPreferenceStore: ManagedPreferenceStore {
     public func valueIsForced(forKey key: String, domain: String) -> Bool {
         defaults.objectIsForced(forKey: key)
     }
+
+    public func observeChanges(
+        forKey key: String,
+        domain: String,
+        handler: @escaping @MainActor @Sendable () -> Void
+    ) -> ManagedPreferenceObservation? {
+        let token = NotificationCenter.default.addObserver(
+            forName: UserDefaults.didChangeNotification,
+            object: defaults,
+            queue: .main
+        ) { _ in
+            Task { @MainActor in
+                handler()
+            }
+        }
+
+        return ManagedPreferenceObservation {
+            NotificationCenter.default.removeObserver(token)
+        }
+    }
 }
 
 public enum ManagedPreferenceResolutionSource: String, Equatable, Sendable {
@@ -58,7 +110,7 @@ public struct ManagedPreferenceReader<Namespace> {
     public var domain: String
     public var store: ManagedPreferenceStore
 
-    public init(domain: String, store: ManagedPreferenceStore = CFPreferencesManagedPreferenceStore()) {
+    public init(domain: String, store: ManagedPreferenceStore = UserDefaultsManagedPreferenceStore()) {
         self.domain = domain
         self.store = store
     }
@@ -115,5 +167,12 @@ public struct ManagedPreferenceReader<Namespace> {
         default fallback: @autoclosure () -> Value
     ) -> Value {
         resolve(preference).value ?? fallback()
+    }
+
+    public func observeChanges<Value: ManagedPreferenceValue>(
+        for preference: ManagedPreference<Namespace, Value>,
+        handler: @escaping @MainActor @Sendable () -> Void
+    ) -> ManagedPreferenceObservation? {
+        store.observeChanges(forKey: preference.key, domain: domain, handler: handler)
     }
 }

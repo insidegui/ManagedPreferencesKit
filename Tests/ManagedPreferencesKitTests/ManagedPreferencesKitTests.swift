@@ -1,4 +1,6 @@
 import ManagedPreferencesKit
+import ManagedPreferencesUI
+import SwiftUI
 import XCTest
 
 final class ManagedPreferencesKitTests: XCTestCase {
@@ -83,6 +85,49 @@ final class ManagedPreferencesKitTests: XCTestCase {
         XCTAssertEqual(resolution.value, ["NAT", "Bridged"])
         XCTAssertEqual(resolution.decodedValue, ["NAT", "HostOnly"])
         XCTAssertEqual(resolution.source, .invalidValue)
+    }
+
+    @MainActor
+    func testManagedValueAndShieldPublicAPIsCompile() {
+        let reader = VirtualBuddyManagedPreferences.schema.reader(
+            store: DictionaryManagedPreferenceStore(
+                values: ["DisableSharedFolders": true],
+                forcedKeys: ["DisableSharedFolders"]
+            )
+        )
+
+        _ = ManagedValueProbe(reader: reader)
+
+        _ = Text("Shared Folders")
+            .managedPreferenceShield(for: .disableSharedFolders, reader: reader) {
+                Text("Blocked")
+            }
+
+        _ = Text("Networking")
+            .managedPreferenceShield(
+                for: .allowedNetworkModes,
+                reader: reader,
+                default: ["NAT"],
+                when: { !$0.contains("Bridged") }
+            ) {
+                Text("Blocked")
+            }
+    }
+}
+
+private struct ManagedValueProbe: View {
+    @ManagedValue<VirtualBuddyManagedPreferences, Bool> private var disableSharedFolders: Bool
+
+    init(reader: ManagedPreferenceReader<VirtualBuddyManagedPreferences>) {
+        _disableSharedFolders = ManagedValue(
+            for: .disableSharedFolders,
+            reader: reader,
+            default: false
+        )
+    }
+
+    var body: some View {
+        Text(disableSharedFolders ? "Blocked" : "Allowed")
     }
 }
 

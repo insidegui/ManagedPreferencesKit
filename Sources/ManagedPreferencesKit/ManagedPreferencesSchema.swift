@@ -29,7 +29,7 @@ public struct ManagedPreferencesSchema<Namespace>: Equatable, Sendable {
         }
     }
 
-    public func reader(store: ManagedPreferenceStore = CFPreferencesManagedPreferenceStore()) -> ManagedPreferenceReader<Namespace> {
+    public func reader(store: ManagedPreferenceStore = UserDefaultsManagedPreferenceStore()) -> ManagedPreferenceReader<Namespace> {
         ManagedPreferenceReader(domain: domain, store: store)
     }
 }
