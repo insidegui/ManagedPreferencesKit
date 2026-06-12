@@ -86,6 +86,14 @@ let markdown = VirtualBuddyManagedPreferences.schema.markdownDocumentation()
 
 The generated Markdown includes the preference domain, keys, value types, defaults, allowed values, examples, and inline behavior notes from the declaration.
 
+## Generating ProfileManifests Plists
+
+```swift
+let manifestData = try VirtualBuddyManagedPreferences.schema.profileManifestData()
+```
+
+The generated plist uses the Apple preference manifest format expected by the iMazing/ProfileManifests repository, including payload metadata, `pfm_domain`, `pfm_subkeys`, scalar value types, string arrays, allowed values, defaults, and user-provided string dictionary keys.
+
 ## Showing Documentation in SwiftUI
 
 Add the `ManagedPreferencesUI` product to an app target, then render the same schema with a native SwiftUI view:
@@ -101,4 +109,4 @@ struct ManagedPreferencesHelpView: View {
 }
 ```
 
-The view renders the schema's native Swift types directly and includes an export button that writes the generated Markdown documentation to disk.
+The view renders the schema's native Swift types directly and includes export buttons for Markdown documentation and ProfileManifests-compatible plist manifests.

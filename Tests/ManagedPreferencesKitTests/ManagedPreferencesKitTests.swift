@@ -30,6 +30,65 @@ final class ManagedPreferencesKitTests: XCTestCase {
         XCTAssertTrue(markdown.contains("Default: `[\"NAT\", \"Bridged\"]`"))
     }
 
+    func testProfileManifestIncludesPayloadMetadataAndPreferenceKeys() throws {
+        let options = ProfileManifestExportOptions(lastModified: Date(timeIntervalSince1970: 0))
+        let data = try VirtualBuddyManagedPreferences.schema.profileManifestData(options: options)
+        let manifest = try XCTUnwrap(PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any])
+
+        XCTAssertEqual(manifest["pfm_domain"] as? String, "codes.rambo.VirtualBuddy")
+        XCTAssertEqual(manifest["pfm_title"] as? String, "VirtualBuddy")
+        XCTAssertEqual(manifest["pfm_description"] as? String, "Configures VirtualBuddy managed preferences.")
+        XCTAssertEqual(manifest["pfm_format_version"] as? Int, 1)
+        XCTAssertEqual(manifest["pfm_version"] as? Int, 1)
+        XCTAssertEqual(manifest["pfm_unique"] as? Bool, true)
+        XCTAssertEqual(manifest["pfm_interaction"] as? String, "combined")
+        XCTAssertEqual(manifest["pfm_platforms"] as? [String], ["macOS"])
+        XCTAssertEqual(manifest["pfm_targets"] as? [String], ["system", "user"])
+
+        let subkeys = try XCTUnwrap(manifest["pfm_subkeys"] as? [[String: Any]])
+
+        let payloadDisplayName = try XCTUnwrap(subkeys.first { $0["pfm_name"] as? String == "PayloadDisplayName" })
+        XCTAssertEqual(payloadDisplayName["pfm_default"] as? String, "VirtualBuddy")
+        XCTAssertEqual(payloadDisplayName["pfm_require"] as? String, "always")
+
+        let disableSharedFolders = try XCTUnwrap(subkeys.first { $0["pfm_name"] as? String == "DisableSharedFolders" })
+        XCTAssertEqual(disableSharedFolders["pfm_type"] as? String, "boolean")
+        XCTAssertEqual(disableSharedFolders["pfm_title"] as? String, "DisableSharedFolders")
+        XCTAssertEqual(disableSharedFolders["pfm_description"] as? String, "Disables Shared Folders globally.")
+        XCTAssertEqual(disableSharedFolders["pfm_default"] as? Bool, false)
+        XCTAssertEqual(disableSharedFolders["pfm_range_list"] as? [Bool], [true, false])
+        XCTAssertEqual(disableSharedFolders["pfm_range_list_titles"] as? [String], [
+            "Shared Folders are unavailable.",
+            "Current behavior."
+        ])
+
+        let allowedNetworkModes = try XCTUnwrap(subkeys.first { $0["pfm_name"] as? String == "AllowedNetworkModes" })
+        XCTAssertEqual(allowedNetworkModes["pfm_type"] as? String, "array")
+        XCTAssertEqual(allowedNetworkModes["pfm_default"] as? [String], ["NAT", "Bridged"])
+
+        let allowedNetworkModeSubkeys = try XCTUnwrap(allowedNetworkModes["pfm_subkeys"] as? [[String: Any]])
+        XCTAssertEqual(allowedNetworkModeSubkeys.count, 1)
+        XCTAssertEqual(allowedNetworkModeSubkeys[0]["pfm_type"] as? String, "string")
+        XCTAssertEqual(allowedNetworkModeSubkeys[0]["pfm_range_list"] as? [String], ["NAT", "Bridged"])
+    }
+
+    func testProfileManifestRepresentsStringDictionariesWithUserProvidedKeys() throws {
+        let options = ProfileManifestExportOptions(lastModified: Date(timeIntervalSince1970: 0), includePayloadMetadata: false)
+        let manifest = DictionaryManagedPreferences.schema.profileManifestPropertyList(options: options)
+        let subkeys = try XCTUnwrap(manifest["pfm_subkeys"] as? [[String: Any]])
+        let labels = try XCTUnwrap(subkeys.first { $0["pfm_name"] as? String == "Labels" })
+
+        XCTAssertEqual(labels["pfm_type"] as? String, "dictionary")
+        XCTAssertEqual(labels["pfm_default"] as? [String: String], ["environment": "lab"])
+
+        let dictionarySubkeys = try XCTUnwrap(labels["pfm_subkeys"] as? [[String: Any]])
+        XCTAssertEqual(dictionarySubkeys.count, 2)
+        XCTAssertEqual(dictionarySubkeys[0]["pfm_name"] as? String, "{{key}}")
+        XCTAssertEqual(dictionarySubkeys[0]["pfm_type"] as? String, "string")
+        XCTAssertEqual(dictionarySubkeys[1]["pfm_name"] as? String, "{{value}}")
+        XCTAssertEqual(dictionarySubkeys[1]["pfm_type"] as? String, "string")
+    }
+
     func testReaderResolvesForcedManagedValue() {
         let reader = VirtualBuddyManagedPreferences.schema.reader(
             store: DictionaryManagedPreferenceStore(
@@ -89,24 +148,19 @@ final class ManagedPreferencesKitTests: XCTestCase {
 
     @MainActor
     func testManagedValueAndShieldPublicAPIsCompile() {
-        let reader = VirtualBuddyManagedPreferences.schema.reader(
-            store: DictionaryManagedPreferenceStore(
-                values: ["DisableSharedFolders": true],
-                forcedKeys: ["DisableSharedFolders"]
-            )
-        )
+        let schema = VirtualBuddyManagedPreferences.schema
 
-        _ = ManagedValueProbe(reader: reader)
+        _ = ManagedValueProbe(schema: schema)
 
         _ = Text("Shared Folders")
-            .managedPreferenceShield(for: .disableSharedFolders, reader: reader) {
+            .managedPreferenceShield(for: .disableSharedFolders, schema: schema) {
                 Text("Blocked")
             }
 
         _ = Text("Networking")
             .managedPreferenceShield(
                 for: .allowedNetworkModes,
-                reader: reader,
+                schema: schema,
                 default: ["NAT"],
                 when: { !$0.contains("Bridged") }
             ) {
@@ -118,10 +172,10 @@ final class ManagedPreferencesKitTests: XCTestCase {
 private struct ManagedValueProbe: View {
     @ManagedValue<VirtualBuddyManagedPreferences, Bool> private var disableSharedFolders: Bool
 
-    init(reader: ManagedPreferenceReader<VirtualBuddyManagedPreferences>) {
+    init(schema: ManagedPreferencesSchema<VirtualBuddyManagedPreferences>) {
         _disableSharedFolders = ManagedValue(
             for: .disableSharedFolders,
-            reader: reader,
+            schema: schema,
             default: false
         )
     }
@@ -183,6 +237,18 @@ private extension ManagedPreference where Namespace == VirtualBuddyManagedPrefer
     static let defaultNetworkMode = Self("DefaultNetworkMode", default: "NAT") {
         Summary("Sets the default network mode for newly created VMs.")
         AllowedValues("NAT", "Bridged")
+    }
+}
+
+private enum DictionaryManagedPreferences: ManagedPreferencesNamespace {
+    static let schema = Schema(domain: "codes.rambo.DictionaryManagedPreferences") {
+        Preference<[String: String]>.labels
+    }
+}
+
+private extension ManagedPreference where Namespace == DictionaryManagedPreferences, Value == [String: String] {
+    static let labels = Self("Labels", default: ["environment": "lab"]) {
+        Summary("Adds string labels to the managed configuration.")
     }
 }
 

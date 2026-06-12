@@ -6,18 +6,30 @@ import UniformTypeIdentifiers
 public struct ManagedPreferencesDocumentationView<Namespace>: View {
     private let schema: ManagedPreferencesSchema<Namespace>
     private let exportFilename: String
+    private let manifestExportFilename: String
 
     @State private var isExportingMarkdown = false
+    @State private var isExportingManifest = false
     @State private var markdownDocument = MarkdownDocumentationDocument(markdown: "")
+    @State private var manifestDocument = ProfileManifestDocument(data: Data())
     @State private var exportFailureMessage: String?
 
-    public init(_ schema: ManagedPreferencesSchema<Namespace>, exportFilename: String? = nil) {
+    public init(
+        _ schema: ManagedPreferencesSchema<Namespace>,
+        exportFilename: String? = nil,
+        manifestExportFilename: String? = nil
+    ) {
         self.schema = schema
         self.exportFilename = exportFilename ?? Self.defaultExportFilename(for: schema)
+        self.manifestExportFilename = manifestExportFilename ?? Self.defaultManifestExportFilename(for: schema)
     }
 
-    public init(schema: ManagedPreferencesSchema<Namespace>, exportFilename: String? = nil) {
-        self.init(schema, exportFilename: exportFilename)
+    public init(
+        schema: ManagedPreferencesSchema<Namespace>,
+        exportFilename: String? = nil,
+        manifestExportFilename: String? = nil
+    ) {
+        self.init(schema, exportFilename: exportFilename, manifestExportFilename: manifestExportFilename)
     }
 
     public var body: some View {
@@ -42,12 +54,22 @@ public struct ManagedPreferencesDocumentationView<Namespace>: View {
                 exportFailureMessage = error.localizedDescription
             }
         }
+        .fileExporter(
+            isPresented: $isExportingManifest,
+            document: manifestDocument,
+            contentType: .managedPreferencesProfileManifest,
+            defaultFilename: manifestExportFilename
+        ) { result in
+            if case let .failure(error) = result {
+                exportFailureMessage = error.localizedDescription
+            }
+        }
         .alert("Export Failed", isPresented: isShowingExportFailure) {
             Button("OK", role: .cancel) {
                 exportFailureMessage = nil
             }
         } message: {
-            Text(exportFailureMessage ?? "The markdown documentation could not be exported.")
+            Text(exportFailureMessage ?? "The file could not be exported.")
         }
     }
 
@@ -65,13 +87,27 @@ public struct ManagedPreferencesDocumentationView<Namespace>: View {
 
             Spacer(minLength: 16)
 
-            Button {
-                markdownDocument = MarkdownDocumentationDocument(markdown: schema.markdownDocumentation())
-                isExportingMarkdown = true
-            } label: {
-                Label("Export Markdown", systemImage: "square.and.arrow.up")
+            HStack(spacing: 8) {
+                Button {
+                    do {
+                        manifestDocument = ProfileManifestDocument(data: try schema.profileManifestData())
+                        isExportingManifest = true
+                    } catch {
+                        exportFailureMessage = error.localizedDescription
+                    }
+                } label: {
+                    Label("Export Manifest", systemImage: "doc.badge.gearshape")
+                }
+                .buttonStyle(.bordered)
+
+                Button {
+                    markdownDocument = MarkdownDocumentationDocument(markdown: schema.markdownDocumentation())
+                    isExportingMarkdown = true
+                } label: {
+                    Label("Export Markdown", systemImage: "square.and.arrow.up")
+                }
+                .buttonStyle(.borderedProminent)
             }
-            .buttonStyle(.borderedProminent)
         }
         .padding()
     }
@@ -123,6 +159,10 @@ public struct ManagedPreferencesDocumentationView<Namespace>: View {
             .joined(separator: "-")
 
         return "\(sanitizedName) Managed Preferences.md"
+    }
+
+    private static func defaultManifestExportFilename(for schema: ManagedPreferencesSchema<Namespace>) -> String {
+        "\(schema.domain.sanitizedExportFilename).plist"
     }
 }
 
@@ -361,6 +401,26 @@ private struct MarkdownDocumentationDocument: FileDocument {
     }
 }
 
+private struct ProfileManifestDocument: FileDocument {
+    static var readableContentTypes: [UTType] {
+        [.managedPreferencesProfileManifest]
+    }
+
+    var data: Data
+
+    init(data: Data) {
+        self.data = data
+    }
+
+    init(configuration: ReadConfiguration) throws {
+        data = configuration.file.regularFileContents ?? Data()
+    }
+
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+        FileWrapper(regularFileWithContents: data)
+    }
+}
+
 private extension UTType {
     static var managedPreferencesMarkdown: UTType {
         if #available(macOS 27.0, *) {
@@ -368,5 +428,18 @@ private extension UTType {
         } else {
             UTType(filenameExtension: "md") ?? .plainText
         }
+    }
+
+    static var managedPreferencesProfileManifest: UTType {
+        UTType(filenameExtension: "plist") ?? .data
+    }
+}
+
+private extension String {
+    var sanitizedExportFilename: String {
+        let invalidCharacters = CharacterSet(charactersIn: "/:")
+
+        return components(separatedBy: invalidCharacters)
+            .joined(separator: "-")
     }
 }
