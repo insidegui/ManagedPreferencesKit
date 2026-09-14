@@ -1,6 +1,8 @@
 # ManagedPreferencesKit
 
-ManagedPreferencesKit is a Swift 6 package for declaring custom managed preferences with a type-safe, result-builder API. It is designed for Mac apps that expose enterprise controls through MDM-delivered managed preferences.
+ManagedPreferencesKit is a Swift package for declaring custom managed preferences with a type-safe, result-builder API. It is designed for Mac apps that expose enterprise controls through MDM-delivered managed preferences.
+
+> NOTE: this was developed for use in [VirtualBuddy](https://github.com/insidegui/VirtualBuddy), not as a general-purpose library. Contributions that are not related to VirtualBuddy will not be accepted. Feel free to fork and maintain your own version if you’d like to use the library for other purposes.
 
 ## Example
 
